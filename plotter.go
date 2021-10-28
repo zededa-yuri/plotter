@@ -63,8 +63,9 @@ var header = []string{
 	"JobsNR",
 	"ReadBW",
 	"WriteBW",
-	"WriteLatMax ms",
-	"WriteLatstddev ms",
+	"Write Lat Max ms",
+	"Write Lat stddev ms",
+	"Write clat p99 ms",
 }
 
 func genRecord(res *Result) []string {
@@ -78,7 +79,7 @@ func genRecord(res *Result) []string {
 	record = append(record, fmt.Sprintf("%d", job.Write.BW))
 	record = append(record, fmt.Sprintf("%.2f", float64(job.Write.LatNS.Max)/1000000))
 	record = append(record, fmt.Sprintf("%.2f", job.Write.LatNS.Stddev/1000000))
-
+	record = append(record, fmt.Sprintf("%.2f", float64(job.Write.ClatNS.Percentile["99.000000"])/1000000))
 	return record
 }
 
