@@ -15,33 +15,44 @@ func check(e error) {
     }
 }
 
+type Result struct {
+	FioData Fio
+	JsonPath string
+	TestName string
+}
 
-func parseResult(path string) error {
-	// fmt.Printf("parsing %s\n", path)
+type resultsMap map[string][]*Result
 
-
-	// bytes, err := os.ReadFile(path)
-	// check(err)
-
-	// result, err := UnmarshalFio(bytes)
-
-	// fmt.Printf("version is %s\n", result.FioVersion)
-	// check(err)
+func parseResult(path string, allResults resultsMap) error {
+	fmt.Printf("parsing %s\n", path)
 
 	re := regexp.MustCompile(`\/fio-output\/([^\/]+)\/`)
 	testName := string(re.FindSubmatch([]byte(path))[1])
-	fmt.Printf("%s:  %s\n", path, testName)
+	// fmt.Printf("%s:  %s\n", path, testName)
 
+	bytes, err := os.ReadFile(path)
+	check(err)
+
+	FioData, err := UnmarshalFio(bytes)
+	check(err)
+
+	Result := Result{
+		FioData: FioData,
+		JsonPath: path,
+		TestName: testName,
+	}
+
+	allResults[testName] = append(allResults[testName], &Result)
 	//	return fmt.Errorf("stop here for now")
 	return nil
 }
 
-func pathWalker(path string, info os.FileInfo) error {
+func pathWalker(path string, info os.FileInfo, allResults resultsMap) error {
 	if !strings.HasSuffix(path, ".json") {
 		return nil
 	}
 
-	err := parseResult(path)
+	err := parseResult(path, allResults)
 
 	return err
 }
@@ -49,12 +60,13 @@ func pathWalker(path string, info os.FileInfo) error {
 func main() {
 	const walkPath = "/Users/yuri/eve-fio-output"
 
+	allResults := make(resultsMap)
 	err := filepath.Walk(walkPath,
 		func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				return err
 			}
-			return pathWalker(path, info)
+			return pathWalker(path, info, allResults)
 
 		})
 	if err != nil {
