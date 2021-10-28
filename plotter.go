@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"regexp"
 )
 
 func check(e error) {
@@ -16,25 +17,29 @@ func check(e error) {
 
 
 func parseResult(path string) error {
-	fmt.Printf("parsing %s\n", path)
+	// fmt.Printf("parsing %s\n", path)
 
-	bytes, err := os.ReadFile(path)
-	check(err)
 
-	result, err := UnmarshalFio(bytes)
+	// bytes, err := os.ReadFile(path)
+	// check(err)
 
-	fmt.Printf("version is %s\n", result.FioVersion)
-	check(err)
+	// result, err := UnmarshalFio(bytes)
 
-	return fmt.Errorf("stop here for now")
+	// fmt.Printf("version is %s\n", result.FioVersion)
+	// check(err)
+
+	re := regexp.MustCompile(`\/fio-output\/([^\/]+)\/`)
+	testName := string(re.FindSubmatch([]byte(path))[1])
+	fmt.Printf("%s:  %s\n", path, testName)
+
+	//	return fmt.Errorf("stop here for now")
+	return nil
 }
 
 func pathWalker(path string, info os.FileInfo) error {
 	if !strings.HasSuffix(path, ".json") {
 		return nil
 	}
-
-	fmt.Printf("visiting %s\n", path)
 
 	err := parseResult(path)
 
