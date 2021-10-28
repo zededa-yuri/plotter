@@ -2,14 +2,43 @@ package main
 
 import (
 	"fmt"
-	"path/filepath"
 	"log"
 	"os"
+	"path/filepath"
+	"strings"
 )
 
+func check(e error) {
+    if e != nil {
+        panic(e)
+    }
+}
+
+
+func parseResult(path string) error {
+	fmt.Printf("parsing %s\n", path)
+
+	bytes, err := os.ReadFile(path)
+	check(err)
+
+	result, err := UnmarshalFio(bytes)
+
+	fmt.Printf("version is %s\n", result.FioVersion)
+	check(err)
+
+	return fmt.Errorf("stop here for now")
+}
+
 func pathWalker(path string, info os.FileInfo) error {
-	fmt.Printf("visiting file %s\n", path)
-	return nil
+	if !strings.HasSuffix(path, ".json") {
+		return nil
+	}
+
+	fmt.Printf("visiting %s\n", path)
+
+	err := parseResult(path)
+
+	return err
 }
 
 func main() {
@@ -20,8 +49,8 @@ func main() {
 			if err != nil {
 				return err
 			}
-			pathWalker(path, info)
-			return nil
+			return pathWalker(path, info)
+
 		})
 	if err != nil {
 		log.Println(err)
