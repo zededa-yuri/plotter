@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"regexp"
+	"encoding/csv"
 )
 
 func check(e error) {
@@ -57,6 +58,55 @@ func pathWalker(path string, info os.FileInfo, allResults resultsMap) error {
 	return err
 }
 
+var header = []string{
+	"Test",
+	"JobsNR",
+	"ReadBW",
+	"WriteBW",
+	"WriteLatMax ms",
+	"WriteLatstddev ms",
+}
+
+func genRecord(res *Result) []string {
+	testName := fmt.Sprintf("%s %s", res.TestName,
+		res.FioData.Jobs[0].JobOptions.Rw)
+	record := []string{testName}
+
+	job := res.FioData.Jobs[0]
+	record = append(record, job.JobOptions.Numjobs)
+	record = append(record, fmt.Sprintf("%d", job.Read.BW))
+	record = append(record, fmt.Sprintf("%d", job.Write.BW))
+	record = append(record, fmt.Sprintf("%.2f", float64(job.Write.LatNS.Max)/1000000))
+	record = append(record, fmt.Sprintf("%.2f", job.Write.LatNS.Stddev/1000000))
+
+	return record
+}
+
+func printTable(allResults resultsMap) {
+	outfile := "file.tsv"
+	f, err := os.Create(outfile)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	defer f.Close()
+	w := csv.NewWriter(f)
+	defer w.Flush()
+	w.Comma = ';'
+
+	w.Write(header)
+	for k := range allResults {
+		curGroup := allResults[k]
+		for _, curTest := range curGroup {
+			if curTest.FioData.Jobs[0].JobOptions.Rw != "write" {
+				continue
+			}
+			record := genRecord(curTest)
+			w.Write(record)
+		}
+	}
+}
+
 func main() {
 	const walkPath = "/Users/yuri/eve-fio-output"
 
@@ -72,4 +122,6 @@ func main() {
 	if err != nil {
 		log.Println(err)
 	}
+
+	printTable(allResults)
 }
