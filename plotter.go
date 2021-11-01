@@ -83,6 +83,18 @@ func genRecord(res *Result) []string {
 	return record
 }
 
+func filterTests(rw string) bool {
+	// if rw == "write" {
+	// 	return false
+	// }
+
+	if rw == "randrw" {
+		return false
+	}
+
+	return true
+}
+
 func printTable(allResults resultsMap) {
 	outfile := "file.tsv"
 	f, err := os.Create(outfile)
@@ -99,7 +111,7 @@ func printTable(allResults resultsMap) {
 	for k := range allResults {
 		curGroup := allResults[k]
 		for _, curTest := range curGroup {
-			if curTest.FioData.Jobs[0].JobOptions.Rw != "write" {
+			if filterTests(curTest.FioData.Jobs[0].JobOptions.Rw) {
 				continue
 			}
 			record := genRecord(curTest)
