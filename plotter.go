@@ -61,6 +61,7 @@ func pathWalker(path string, info os.FileInfo, allResults resultsMap) error {
 var header = []string{
 	"Test",
 	"JobsNR",
+	"Depth",
 	"ReadBW",
 	"WriteBW",
 	"Write Lat Max ms",
@@ -75,6 +76,7 @@ func genRecord(res *Result) []string {
 
 	job := res.FioData.Jobs[0]
 	record = append(record, job.JobOptions.Numjobs)
+	record = append(record, job.JobOptions.Iodepth)
 	record = append(record, fmt.Sprintf("%d", job.Read.BW))
 	record = append(record, fmt.Sprintf("%d", job.Write.BW))
 	record = append(record, fmt.Sprintf("%.2f", float64(job.Write.LatNS.Max)/1000000))
@@ -88,7 +90,7 @@ func filterTests(rw string) bool {
 	// 	return false
 	// }
 
-	if rw == "randrw" {
+	if rw == "write" {
 		return false
 	}
 
