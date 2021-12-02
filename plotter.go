@@ -1,23 +1,25 @@
 package main
 
 import (
+	"encoding/csv"
 	"fmt"
 	"log"
 	"os"
 	"path/filepath"
-	"strings"
 	"regexp"
-	"encoding/csv"
+	"strings"
+	// "github.com/xuri/excelize/v2"
 )
 
 func check(e error) {
-    if e != nil {
-        panic(e)
-    }
+	if e != nil {
+		panic(e)
+	}
 }
 
 type Result struct {
-	FioData Fio
+	SysStat  SysStat
+	FioData  Fio
 	JsonPath string
 	TestName string
 }
@@ -27,18 +29,34 @@ type resultsMap map[string][]*Result
 func parseResult(path string, allResults resultsMap) error {
 	fmt.Printf("parsing %s\n", path)
 
-	re := regexp.MustCompile(`\/fio-output\/([^\/]+)\/`)
+	re := regexp.MustCompile(`\/([a-z]+)-jobs\d+-bs\d+.?-iodepth\d+`)
 	testName := string(re.FindSubmatch([]byte(path))[1])
+
+	dirName := filepath.Dir(path)
+	testFamily := filepath.Base(dirName)
 	// fmt.Printf("%s:  %s\n", path, testName)
 
 	bytes, err := os.ReadFile(path)
 	check(err)
 
+	SysStatData, err := UnmarshalSysStat(bytes)
+	check(err)
+
+	bytes, err = os.ReadFile(fmt.Sprintf("%s/%s-guest/result.json", dirName, testFamily))
+	check(err)
+
+	jsonString := string(bytes)
+	jsonStartsAt := strings.Index(jsonString, "{")
+	jsonEndsAt := strings.LastIndex(jsonString, "}")
+	jsonString = jsonString[jsonStartsAt : jsonEndsAt+2]
+	bytes = []byte(jsonString)
+
 	FioData, err := UnmarshalFio(bytes)
 	check(err)
 
 	Result := Result{
-		FioData: FioData,
+		SysStat:  SysStatData,
+		FioData:  FioData,
 		JsonPath: path,
 		TestName: testName,
 	}
@@ -49,7 +67,7 @@ func parseResult(path string, allResults resultsMap) error {
 }
 
 func pathWalker(path string, info os.FileInfo, allResults resultsMap) error {
-	if !strings.HasSuffix(path, ".json") {
+	if !strings.HasSuffix(path, "sys_stats.json") {
 		return nil
 	}
 
@@ -123,7 +141,8 @@ func printTable(allResults resultsMap) {
 }
 
 func main() {
-	const walkPath = "/Users/yuri/eve-fio-output"
+	// const walkPath = "/Users/yuri/eve-fio-output"
+	const walkPath = "zfs_untuned_p4"
 
 	allResults := make(resultsMap)
 	err := filepath.Walk(walkPath,
