@@ -142,7 +142,7 @@ func printTable(allResults resultsMap) {
 
 func main() {
 	// const walkPath = "/Users/yuri/eve-fio-output"
-	const walkPath = "zfs_untuned_p4"
+	const walkPath = "results/zfs_untuned_p4"
 
 	allResults := make(resultsMap)
 	err := filepath.Walk(walkPath,
