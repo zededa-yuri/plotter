@@ -1,0 +1,6 @@
+/results
+/__debug_bin
+/file.tsv
+/plotter
+/go.sum
+.*
