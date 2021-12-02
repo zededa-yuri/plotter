@@ -18,10 +18,11 @@ func check(e error) {
 }
 
 type Result struct {
-	SysStat  SysStat
-	FioData  Fio
-	JsonPath string
-	TestName string
+	SysStat    SysStat
+	SysStatLog SysStatLog
+	FioData    Fio
+	JsonPath   string
+	TestName   string
 }
 
 type resultsMap map[string][]*Result
@@ -54,11 +55,18 @@ func parseResult(path string, allResults resultsMap) error {
 	FioData, err := UnmarshalFio(bytes)
 	check(err)
 
+	bytes, err = os.ReadFile(fmt.Sprintf("%s/sys_stats_log.json", dirName))
+	check(err)
+
+	SysStatLogData, err := UnmarshalSysStatLog(bytes)
+	check(err)
+
 	Result := Result{
-		SysStat:  SysStatData,
-		FioData:  FioData,
-		JsonPath: path,
-		TestName: testName,
+		SysStat:    SysStatData,
+		SysStatLog: SysStatLogData,
+		FioData:    FioData,
+		JsonPath:   path,
+		TestName:   testName,
 	}
 
 	allResults[testName] = append(allResults[testName], &Result)
