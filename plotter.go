@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/xuri/excelize/v2"
 )
@@ -163,39 +164,50 @@ func printTable(allResults resultsMap) {
 	}
 }
 
-// testStartedAt, err := time.Parse("2006-01-02T15:04:05-0700", SysStatData.BeforeTest.Date)
-// check(err)
-// testFinishedAt, err := time.Parse("2006-01-02T15:04:05-0700", SysStatData.AfterTest.Date)
-// check(err)
-// memTotal := SysStatData.BeforeTest.Memory.MemTotal
-// freeMemMin := int64{0}
-// freeMemMax := memTotal
-// memSum := int64{0}
-// samplesNr := int64{0}
+func getMemUsage(res *Result) (int64, int64, int64) {
+	SysStatData := res.SysStat
+	SysStatLogData := res.SysStatLog
 
-// for i, logEntry := range SysStatLogData {
-// 	curTime, err := time.Parse("2006-01-02T15:04:05-0700", logEntry.Date)
-// 	check(err)
+	testStartedAt, err := time.Parse("2006-01-02T15:04:05-0700", SysStatData.BeforeTest.Date)
+	check(err)
+	testFinishedAt, err := time.Parse("2006-01-02T15:04:05-0700", SysStatData.AfterTest.Date)
+	check(err)
+	memTotal := SysStatData.BeforeTest.Memory.MemTotal
+	freeMemMin := int64(0)
+	freeMemMax := memTotal
+	memSum := int64(0)
+	samplesNr := int64(0)
 
-// 	if curTime.Before(testStartedAt) {
-// 		continue
-// 	}
+	for _, logEntry := range SysStatLogData {
+		curTime, err := time.Parse("2006-01-02T15:04:05-0700", logEntry.Date)
+		check(err)
 
-// 	memSum += int(logEntry.Memory.MemFree)
-// 	samplesNr++
+		if curTime.Before(testStartedAt) {
+			continue
+		}
 
-// 	if logEntry.Memory.MemFree > freeMemMax {
-// 		freeMemMax = logEntry.Memory.MemFree
-// 	}
+		memSum += int64(logEntry.Memory.MemFree)
+		samplesNr++
 
-// 	if logEntry.Memory.MemFree < freeMemMin {
-// 		freeMemMin = logEntry.Memory.MemFree
-// 	}
+		if logEntry.Memory.MemFree < freeMemMax {
+			freeMemMax = logEntry.Memory.MemFree
+		}
 
-// 	if curTime.After(testFinishedAt) {
-// 		break
-// 	}
-// }
+		if logEntry.Memory.MemFree > freeMemMin {
+			freeMemMin = logEntry.Memory.MemFree
+		}
+
+		if curTime.After(testFinishedAt) {
+			break
+		}
+	}
+
+	usedMax := memTotal - freeMemMin
+	usedMin := memTotal - freeMemMax
+	usedAvg := memTotal - memSum/samplesNr
+
+	return usedMax, usedMin, usedAvg
+}
 
 func genExcelRow(res *Result, f *excelize.File, family string, row_nr int) {
 	job := res.FioData.Jobs[0]
@@ -222,6 +234,11 @@ func genExcelRow(res *Result, f *excelize.File, family string, row_nr int) {
 	f.SetCellValue(family, fmt.Sprintf("O%d", row_nr), job.Read.Iops)
 	//f.SetCellValue(family, fmt.Sprintf("J%d", row_nr), float64(job.Write.LatNS.Stddev)/1000000)
 
+	memMax, memMin, memAvg := getMemUsage(res)
+	f.SetCellValue(family, fmt.Sprintf("P%d", row_nr), memMax)
+	f.SetCellValue(family, fmt.Sprintf("Q%d", row_nr), memMin)
+	f.SetCellValue(family, fmt.Sprintf("R%d", row_nr), memAvg)
+
 }
 
 func genExcelSheet(results []*Result, f *excelize.File, family string) {
@@ -229,8 +246,8 @@ func genExcelSheet(results []*Result, f *excelize.File, family string) {
 	f.SetCellValue(family, "A1", "Test")
 	f.SetCellValue(family, "B1", "JobsNR")
 	f.SetCellValue(family, "C1", "Depth")
-	f.SetCellValue(family, "D1", "WriteBW")
-	f.SetCellValue(family, "E1", "ReadBW")
+	f.SetCellValue(family, "D1", "WriteBW KiB/s")
+	f.SetCellValue(family, "E1", "ReadBW KiB/s")
 
 	f.SetCellValue(family, "F1", "Write LatMax")
 	f.SetCellValue(family, "G1", "Write LatMin")
@@ -244,6 +261,10 @@ func genExcelSheet(results []*Result, f *excelize.File, family string) {
 
 	f.SetCellValue(family, "N1", "Write IOPS")
 	f.SetCellValue(family, "O1", "Read IOPS")
+
+	f.SetCellValue(family, "P1", "Mem Min")
+	f.SetCellValue(family, "Q1", "Mem Max")
+	f.SetCellValue(family, "R1", "Mem Avg")
 
 	//f.SetCellValue(family, "G1", "ReadBW")
 	//f.SetCellValue(family, "K1", "ReadBW")
