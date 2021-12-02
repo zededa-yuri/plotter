@@ -23,6 +23,7 @@ type Result struct {
 	FioData    Fio
 	JsonPath   string
 	TestName   string
+	TestFamily string
 }
 
 type resultsMap map[string][]*Result
@@ -34,7 +35,8 @@ func parseResult(path string, allResults resultsMap) error {
 	testName := string(re.FindSubmatch([]byte(path))[1])
 
 	dirName := filepath.Dir(path)
-	testFamily := filepath.Base(dirName)
+	testFamily := filepath.Base(filepath.Dir(dirName))
+	testFullName := filepath.Base(dirName)
 	// fmt.Printf("%s:  %s\n", path, testName)
 
 	bytes, err := os.ReadFile(path)
@@ -43,7 +45,7 @@ func parseResult(path string, allResults resultsMap) error {
 	SysStatData, err := UnmarshalSysStat(bytes)
 	check(err)
 
-	bytes, err = os.ReadFile(fmt.Sprintf("%s/%s-guest/result.json", dirName, testFamily))
+	bytes, err = os.ReadFile(fmt.Sprintf("%s/%s-guest/result.json", dirName, testFullName))
 	check(err)
 
 	jsonString := string(bytes)
@@ -67,9 +69,10 @@ func parseResult(path string, allResults resultsMap) error {
 		FioData:    FioData,
 		JsonPath:   path,
 		TestName:   testName,
+		TestFamily: testFamily,
 	}
 
-	allResults[testName] = append(allResults[testName], &Result)
+	allResults[testFamily] = append(allResults[testFamily], &Result)
 	//	return fmt.Errorf("stop here for now")
 	return nil
 }
@@ -148,6 +151,47 @@ func printTable(allResults resultsMap) {
 	}
 }
 
+// testStartedAt, err := time.Parse("2006-01-02T15:04:05-0700", SysStatData.BeforeTest.Date)
+// check(err)
+// testFinishedAt, err := time.Parse("2006-01-02T15:04:05-0700", SysStatData.AfterTest.Date)
+// check(err)
+// memTotal := SysStatData.BeforeTest.Memory.MemTotal
+// freeMemMin := int64{0}
+// freeMemMax := memTotal
+// memSum := int64{0}
+// samplesNr := int64{0}
+
+// for i, logEntry := range SysStatLogData {
+// 	curTime, err := time.Parse("2006-01-02T15:04:05-0700", logEntry.Date)
+// 	check(err)
+
+// 	if curTime.Before(testStartedAt) {
+// 		continue
+// 	}
+
+// 	memSum += int(logEntry.Memory.MemFree)
+// 	samplesNr++
+
+// 	if logEntry.Memory.MemFree > freeMemMax {
+// 		freeMemMax = logEntry.Memory.MemFree
+// 	}
+
+// 	if logEntry.Memory.MemFree < freeMemMin {
+// 		freeMemMin = logEntry.Memory.MemFree
+// 	}
+
+// 	if curTime.After(testFinishedAt) {
+// 		break
+// 	}
+// }
+
+func genExcel(allResults resultsMap) {
+	for family := range allResults {
+		for _, test := range allResults[family] {
+			fmt.Printf("test name %s", test.TestName)
+		}
+	}
+}
 func main() {
 	// const walkPath = "/Users/yuri/eve-fio-output"
 	const walkPath = "results/zfs_untuned_p4"
@@ -166,4 +210,5 @@ func main() {
 	}
 
 	printTable(allResults)
+	genExcel(allResults)
 }
