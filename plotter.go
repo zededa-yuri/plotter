@@ -7,8 +7,10 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
-	// "github.com/xuri/excelize/v2"
+
+	"github.com/xuri/excelize/v2"
 )
 
 func check(e error) {
@@ -18,12 +20,14 @@ func check(e error) {
 }
 
 type Result struct {
-	SysStat    SysStat
-	SysStatLog SysStatLog
-	FioData    Fio
-	JsonPath   string
-	TestName   string
-	TestFamily string
+	jobsNr       int
+	SysStat      SysStat
+	SysStatLog   SysStatLog
+	FioData      Fio
+	JsonPath     string
+	TestName     string
+	testFullName string
+	TestFamily   string
 }
 
 type resultsMap map[string][]*Result
@@ -49,6 +53,12 @@ func parseResult(path string, allResults resultsMap) error {
 	check(err)
 
 	jsonString := string(bytes)
+
+	re = regexp.MustCompile(`Starting (\d+) process`)
+	jobsNrStr := string(re.FindSubmatch(bytes)[1])
+	jobsNr, err := strconv.Atoi(jobsNrStr)
+	check(err)
+
 	jsonStartsAt := strings.Index(jsonString, "{")
 	jsonEndsAt := strings.LastIndex(jsonString, "}")
 	jsonString = jsonString[jsonStartsAt : jsonEndsAt+2]
@@ -64,12 +74,14 @@ func parseResult(path string, allResults resultsMap) error {
 	check(err)
 
 	Result := Result{
-		SysStat:    SysStatData,
-		SysStatLog: SysStatLogData,
-		FioData:    FioData,
-		JsonPath:   path,
-		TestName:   testName,
-		TestFamily: testFamily,
+		jobsNr:       jobsNr,
+		SysStat:      SysStatData,
+		SysStatLog:   SysStatLogData,
+		FioData:      FioData,
+		JsonPath:     path,
+		TestName:     testName,
+		testFullName: testFullName,
+		TestFamily:   testFamily,
 	}
 
 	allResults[testFamily] = append(allResults[testFamily], &Result)
@@ -185,11 +197,75 @@ func printTable(allResults resultsMap) {
 // 	}
 // }
 
+func genExcelRow(res *Result, f *excelize.File, family string, row_nr int) {
+	job := res.FioData.Jobs[0]
+	f.SetCellValue(family, fmt.Sprintf("A%d", row_nr), res.testFullName)
+	f.SetCellValue(family, fmt.Sprintf("B%d", row_nr), res.jobsNr)
+
+	iodepth, err := strconv.Atoi(job.JobOptions.Iodepth)
+	check(err)
+	f.SetCellValue(family, fmt.Sprintf("C%d", row_nr), iodepth)
+
+	f.SetCellValue(family, fmt.Sprintf("D%d", row_nr), job.Write.BW)
+	f.SetCellValue(family, fmt.Sprintf("E%d", row_nr), job.Read.BW)
+	f.SetCellValue(family, fmt.Sprintf("F%d", row_nr), float64(job.Write.LatNS.Max)/1000000)
+	f.SetCellValue(family, fmt.Sprintf("G%d", row_nr), float64(job.Write.LatNS.Min)/1000000)
+	f.SetCellValue(family, fmt.Sprintf("H%d", row_nr), float64(job.Write.LatNS.Stddev)/1000000)
+	f.SetCellValue(family, fmt.Sprintf("I%d", row_nr), float64(job.Write.ClatNS.Percentile["99.000000"])/1000000)
+
+	f.SetCellValue(family, fmt.Sprintf("J%d", row_nr), float64(job.Read.LatNS.Max)/1000000)
+	f.SetCellValue(family, fmt.Sprintf("K%d", row_nr), float64(job.Read.LatNS.Min)/1000000)
+	f.SetCellValue(family, fmt.Sprintf("L%d", row_nr), float64(job.Read.LatNS.Stddev)/1000000)
+	f.SetCellValue(family, fmt.Sprintf("M%d", row_nr), float64(job.Read.ClatNS.Percentile["99.000000"])/1000000)
+
+	f.SetCellValue(family, fmt.Sprintf("N%d", row_nr), job.Write.Iops)
+	f.SetCellValue(family, fmt.Sprintf("O%d", row_nr), job.Read.Iops)
+	//f.SetCellValue(family, fmt.Sprintf("J%d", row_nr), float64(job.Write.LatNS.Stddev)/1000000)
+
+}
+
+func genExcelSheet(results []*Result, f *excelize.File, family string) {
+	index := f.NewSheet(family)
+	f.SetCellValue(family, "A1", "Test")
+	f.SetCellValue(family, "B1", "JobsNR")
+	f.SetCellValue(family, "C1", "Depth")
+	f.SetCellValue(family, "D1", "WriteBW")
+	f.SetCellValue(family, "E1", "ReadBW")
+
+	f.SetCellValue(family, "F1", "Write LatMax")
+	f.SetCellValue(family, "G1", "Write LatMin")
+	f.SetCellValue(family, "H1", "Write Lat stddev")
+	f.SetCellValue(family, "I1", "Write cLat p99 ms")
+
+	f.SetCellValue(family, "J1", "Read LatMax")
+	f.SetCellValue(family, "K1", "Read LatMin")
+	f.SetCellValue(family, "L1", "Read Lat stddev")
+	f.SetCellValue(family, "M1", "Read cLat p99 ms")
+
+	f.SetCellValue(family, "N1", "Write IOPS")
+	f.SetCellValue(family, "O1", "Read IOPS")
+
+	//f.SetCellValue(family, "G1", "ReadBW")
+	//f.SetCellValue(family, "K1", "ReadBW")
+
+	row_nr := 2
+	for _, test := range results {
+		genExcelRow(test, f, family, row_nr)
+	}
+	f.SetActiveSheet(index)
+}
+
 func genExcel(allResults resultsMap) {
+	f := excelize.NewFile()
+
+	f.SetCellValue("Sheet1", "A2", "Hello world.")
+
 	for family := range allResults {
-		for _, test := range allResults[family] {
-			fmt.Printf("test name %s", test.TestName)
-		}
+		genExcelSheet(allResults[family], f, family)
+	}
+
+	if err := f.SaveAs("restults.xlsx"); err != nil {
+		fmt.Println(err)
 	}
 }
 func main() {
