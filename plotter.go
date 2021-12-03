@@ -209,6 +209,17 @@ func getMemUsage(res *Result) (int64, int64, int64) {
 	return usedMax, usedMin, usedAvg
 }
 
+func getCpuUsage(res *Result) int {
+	sysStat := res.SysStat
+
+	diffUser := sysStat.AfterTest.CPU.Usage - sysStat.BeforeTest.CPU.Usage
+	diffSys := sysStat.AfterTest.CPU.System - sysStat.BeforeTest.CPU.System
+	diffIdle := sysStat.AfterTest.CPU.Idle - sysStat.BeforeTest.CPU.Idle
+
+	/* XXX: rerun tests to collect all the cpu stats from /proc/stat */
+	return int((diffUser + diffSys) * 100 / (diffUser + diffSys + diffIdle))
+}
+
 func genExcelRow(res *Result, f *excelize.File, family string, row_nr int) {
 	job := res.FioData.Jobs[0]
 	f.SetCellValue(family, fmt.Sprintf("A%d", row_nr), res.testFullName)
@@ -239,6 +250,8 @@ func genExcelRow(res *Result, f *excelize.File, family string, row_nr int) {
 	f.SetCellValue(family, fmt.Sprintf("Q%d", row_nr), memMin)
 	f.SetCellValue(family, fmt.Sprintf("R%d", row_nr), memAvg)
 
+	f.SetCellValue(family, fmt.Sprintf("S%d", row_nr), getCpuUsage(res))
+
 }
 
 func genExcelSheet(results []*Result, f *excelize.File, family string) {
@@ -266,20 +279,18 @@ func genExcelSheet(results []*Result, f *excelize.File, family string) {
 	f.SetCellValue(family, "Q1", "Mem Max")
 	f.SetCellValue(family, "R1", "Mem Avg")
 
-	//f.SetCellValue(family, "G1", "ReadBW")
-	//f.SetCellValue(family, "K1", "ReadBW")
+	f.SetCellValue(family, "S1", "CPU %")
 
 	row_nr := 2
 	for _, test := range results {
 		genExcelRow(test, f, family, row_nr)
+		row_nr++
 	}
 	f.SetActiveSheet(index)
 }
 
 func genExcel(allResults resultsMap) {
 	f := excelize.NewFile()
-
-	f.SetCellValue("Sheet1", "A2", "Hello world.")
 
 	for family := range allResults {
 		genExcelSheet(allResults[family], f, family)
@@ -291,7 +302,7 @@ func genExcel(allResults resultsMap) {
 }
 func main() {
 	// const walkPath = "/Users/yuri/eve-fio-output"
-	const walkPath = "results/zfs_untuned_p4"
+	const walkPath = "results"
 
 	allResults := make(resultsMap)
 	err := filepath.Walk(walkPath,
