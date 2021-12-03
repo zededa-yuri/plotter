@@ -32,9 +32,15 @@ type Test struct {
 }
 
 type CPU struct {
-	Usage  int64 `json:"usage"`
-	System int64 `json:"system"`
-	Idle   int64 `json:"idle"`
+	User    int64 `json:"user"`
+	Nice    int64 `json:"nice"`
+	System  int64 `json:"system"`
+	Idle    int64 `json:"idle"`
+	Iowait  int64 `json:"iowait"`
+	IRQ     int64 `json:"irq"`
+	Softirq int64 `json:"softirq"`
+	Steal   int64 `json:"steal"`
+	Guest   int64 `json:"guest"`
 }
 
 type Memory struct {

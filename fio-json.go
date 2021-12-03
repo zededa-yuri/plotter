@@ -38,6 +38,7 @@ type GlobalOptions struct {
 	Size     string `json:"size"`
 	Runtime  string `json:"runtime"`
 	Filename string `json:"filename"`
+	RW       string `json:"rw"`
 }
 
 type Job struct {

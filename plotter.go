@@ -164,7 +164,7 @@ func printTable(allResults resultsMap) {
 	}
 }
 
-func getMemUsage(res *Result) (int64, int64, int64) {
+func getMemUser(res *Result) (int64, int64, int64) {
 	SysStatData := res.SysStat
 	SysStatLogData := res.SysStatLog
 
@@ -209,20 +209,42 @@ func getMemUsage(res *Result) (int64, int64, int64) {
 	return usedMax, usedMin, usedAvg
 }
 
-func getCpuUsage(res *Result) int {
+func getCpuUser(res *Result) int {
 	sysStat := res.SysStat
 
-	diffUser := sysStat.AfterTest.CPU.Usage - sysStat.BeforeTest.CPU.Usage
-	diffSys := sysStat.AfterTest.CPU.System - sysStat.BeforeTest.CPU.System
-	diffIdle := sysStat.AfterTest.CPU.Idle - sysStat.BeforeTest.CPU.Idle
+	before := sysStat.BeforeTest.CPU
+	after := sysStat.AfterTest.CPU
 
-	/* XXX: rerun tests to collect all the cpu stats from /proc/stat */
-	return int((diffUser + diffSys) * 100 / (diffUser + diffSys + diffIdle))
+	totalBefore := before.User +
+		before.Nice +
+		before.System +
+		before.Idle +
+		before.Iowait +
+		before.IRQ +
+		before.Softirq +
+		before.Steal +
+		before.Guest
+
+	totalAfter := after.User +
+		after.Nice +
+		after.System +
+		after.Idle +
+		after.Iowait +
+		after.IRQ +
+		after.Softirq +
+		after.Steal +
+		after.Guest
+
+	usedBefore := totalBefore - before.Idle - before.Iowait
+	usedAfter := totalAfter - after.Idle - after.Iowait
+
+	return int((usedAfter - usedBefore) * 100 / (totalAfter - totalBefore))
 }
 
 func genExcelRow(headers *headersMap, res *Result, f *excelize.File, family string, row_nr int) {
 	job := res.FioData.Jobs[0]
 	f.SetCellValue(family, getCell(headers, "Test", row_nr), res.testFullName)
+	f.SetCellValue(family, getCell(headers, "rw", row_nr), res.FioData.GlobalOptions.RW)
 	f.SetCellValue(family, getCell(headers, "JobsNR", row_nr), res.jobsNr)
 
 	iodepth, err := strconv.Atoi(job.JobOptions.Iodepth)
@@ -244,13 +266,12 @@ func genExcelRow(headers *headersMap, res *Result, f *excelize.File, family stri
 	f.SetCellValue(family, getCell(headers, "Write IOPS", row_nr), job.Write.Iops)
 	f.SetCellValue(family, getCell(headers, "pRead IOPS", row_nr), job.Read.Iops)
 
-	memMax, memMin, memAvg := getMemUsage(res)
+	memMax, memMin, memAvg := getMemUser(res)
 	f.SetCellValue(family, getCell(headers, "Mem Min", row_nr), memMax)
 	f.SetCellValue(family, getCell(headers, "Mem Max", row_nr), memMin)
 	f.SetCellValue(family, getCell(headers, "Mem Avg", row_nr), memAvg)
 
-	f.SetCellValue(family, getCell(headers, "CPU %", row_nr), getCpuUsage(res))
-
+	f.SetCellValue(family, getCell(headers, "CPU %", row_nr), getCpuUser(res))
 }
 
 type headersMap map[string]string
@@ -274,6 +295,8 @@ func genExcelSheet(results []*Result, f *excelize.File, family string) {
 	headers := make(headersMap)
 	addHead(f, &headers, "Test", family)
 
+	addHead(f, &headers, "rw", family)
+
 	addHead(f, &headers, "JobsNR", family)
 	addHead(f, &headers, "Depth", family)
 	addHead(f, &headers, "WriteBW KiB/s", family)
@@ -290,11 +313,11 @@ func genExcelSheet(results []*Result, f *excelize.File, family string) {
 	addHead(f, &headers, "Read cLat p99 ms", family)
 
 	addHead(f, &headers, "Write IOPS", family)
-	addHead(f, &headers, "pRead IOPS" , family)
+	addHead(f, &headers, "pRead IOPS", family)
 
-	addHead(f, &headers, "Mem Min"   , family)
-	addHead(f, &headers, "Mem Max"   , family)
-	addHead(f, &headers, "Mem Avg"   , family)
+	addHead(f, &headers, "Mem Min", family)
+	addHead(f, &headers, "Mem Max", family)
+	addHead(f, &headers, "Mem Avg", family)
 
 	addHead(f, &headers, "CPU %", family)
 
@@ -319,7 +342,7 @@ func genExcel(allResults resultsMap) {
 }
 func main() {
 	// const walkPath = "/Users/yuri/eve-fio-output"
-	const walkPath = "results"
+	const walkPath = "results-proper-cpu"
 
 	allResults := make(resultsMap)
 	err := filepath.Walk(walkPath,
