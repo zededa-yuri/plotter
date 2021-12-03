@@ -220,70 +220,87 @@ func getCpuUsage(res *Result) int {
 	return int((diffUser + diffSys) * 100 / (diffUser + diffSys + diffIdle))
 }
 
-func genExcelRow(res *Result, f *excelize.File, family string, row_nr int) {
+func genExcelRow(headers *headersMap, res *Result, f *excelize.File, family string, row_nr int) {
 	job := res.FioData.Jobs[0]
-	f.SetCellValue(family, fmt.Sprintf("A%d", row_nr), res.testFullName)
-	f.SetCellValue(family, fmt.Sprintf("B%d", row_nr), res.jobsNr)
+	f.SetCellValue(family, getCell(headers, "Test", row_nr), res.testFullName)
+	f.SetCellValue(family, getCell(headers, "JobsNR", row_nr), res.jobsNr)
 
 	iodepth, err := strconv.Atoi(job.JobOptions.Iodepth)
 	check(err)
-	f.SetCellValue(family, fmt.Sprintf("C%d", row_nr), iodepth)
+	f.SetCellValue(family, getCell(headers, "Depth", row_nr), iodepth)
 
-	f.SetCellValue(family, fmt.Sprintf("D%d", row_nr), job.Write.BW)
-	f.SetCellValue(family, fmt.Sprintf("E%d", row_nr), job.Read.BW)
-	f.SetCellValue(family, fmt.Sprintf("F%d", row_nr), float64(job.Write.LatNS.Max)/1000000)
-	f.SetCellValue(family, fmt.Sprintf("G%d", row_nr), float64(job.Write.LatNS.Min)/1000000)
-	f.SetCellValue(family, fmt.Sprintf("H%d", row_nr), float64(job.Write.LatNS.Stddev)/1000000)
-	f.SetCellValue(family, fmt.Sprintf("I%d", row_nr), float64(job.Write.ClatNS.Percentile["99.000000"])/1000000)
+	f.SetCellValue(family, getCell(headers, "WriteBW KiB/s", row_nr), job.Write.BW)
+	f.SetCellValue(family, getCell(headers, "ReadBW KiB/s", row_nr), job.Read.BW)
+	f.SetCellValue(family, getCell(headers, "Write LatMax", row_nr), float64(job.Write.LatNS.Max)/1000000)
+	f.SetCellValue(family, getCell(headers, "Write LatMin", row_nr), float64(job.Write.LatNS.Min)/1000000)
+	f.SetCellValue(family, getCell(headers, "Write Lat stddev", row_nr), float64(job.Write.LatNS.Stddev)/1000000)
+	f.SetCellValue(family, getCell(headers, "Write cLat p99 ms", row_nr), float64(job.Write.ClatNS.Percentile["99.000000"])/1000000)
 
-	f.SetCellValue(family, fmt.Sprintf("J%d", row_nr), float64(job.Read.LatNS.Max)/1000000)
-	f.SetCellValue(family, fmt.Sprintf("K%d", row_nr), float64(job.Read.LatNS.Min)/1000000)
-	f.SetCellValue(family, fmt.Sprintf("L%d", row_nr), float64(job.Read.LatNS.Stddev)/1000000)
-	f.SetCellValue(family, fmt.Sprintf("M%d", row_nr), float64(job.Read.ClatNS.Percentile["99.000000"])/1000000)
+	f.SetCellValue(family, getCell(headers, "Read LatMax", row_nr), float64(job.Read.LatNS.Max)/1000000)
+	f.SetCellValue(family, getCell(headers, "Read LatMin", row_nr), float64(job.Read.LatNS.Min)/1000000)
+	f.SetCellValue(family, getCell(headers, "Read Lat stddev", row_nr), float64(job.Read.LatNS.Stddev)/1000000)
+	f.SetCellValue(family, getCell(headers, "Read cLat p99 ms", row_nr), float64(job.Read.ClatNS.Percentile["99.000000"])/1000000)
 
-	f.SetCellValue(family, fmt.Sprintf("N%d", row_nr), job.Write.Iops)
-	f.SetCellValue(family, fmt.Sprintf("O%d", row_nr), job.Read.Iops)
-	//f.SetCellValue(family, fmt.Sprintf("J%d", row_nr), float64(job.Write.LatNS.Stddev)/1000000)
+	f.SetCellValue(family, getCell(headers, "Write IOPS", row_nr), job.Write.Iops)
+	f.SetCellValue(family, getCell(headers, "pRead IOPS", row_nr), job.Read.Iops)
 
 	memMax, memMin, memAvg := getMemUsage(res)
-	f.SetCellValue(family, fmt.Sprintf("P%d", row_nr), memMax)
-	f.SetCellValue(family, fmt.Sprintf("Q%d", row_nr), memMin)
-	f.SetCellValue(family, fmt.Sprintf("R%d", row_nr), memAvg)
+	f.SetCellValue(family, getCell(headers, "Mem Min", row_nr), memMax)
+	f.SetCellValue(family, getCell(headers, "Mem Max", row_nr), memMin)
+	f.SetCellValue(family, getCell(headers, "Mem Avg", row_nr), memAvg)
 
-	f.SetCellValue(family, fmt.Sprintf("S%d", row_nr), getCpuUsage(res))
+	f.SetCellValue(family, getCell(headers, "CPU %", row_nr), getCpuUsage(res))
 
+}
+
+type headersMap map[string]string
+
+func addHead(f *excelize.File, headers *headersMap, head string, sheet string) {
+	nextIndex := len(*headers) + 1
+	column, err := excelize.ColumnNumberToName(nextIndex)
+	check(err)
+	(*headers)[head] = column
+
+	f.SetCellValue(sheet, fmt.Sprintf("%s1", column), head)
+}
+
+func getCell(headers *headersMap, header string, row int) string {
+	column := (*headers)[header]
+	return fmt.Sprintf("%s%d", column, row)
 }
 
 func genExcelSheet(results []*Result, f *excelize.File, family string) {
 	index := f.NewSheet(family)
-	f.SetCellValue(family, "A1", "Test")
-	f.SetCellValue(family, "B1", "JobsNR")
-	f.SetCellValue(family, "C1", "Depth")
-	f.SetCellValue(family, "D1", "WriteBW KiB/s")
-	f.SetCellValue(family, "E1", "ReadBW KiB/s")
+	headers := make(headersMap)
+	addHead(f, &headers, "Test", family)
 
-	f.SetCellValue(family, "F1", "Write LatMax")
-	f.SetCellValue(family, "G1", "Write LatMin")
-	f.SetCellValue(family, "H1", "Write Lat stddev")
-	f.SetCellValue(family, "I1", "Write cLat p99 ms")
+	addHead(f, &headers, "JobsNR", family)
+	addHead(f, &headers, "Depth", family)
+	addHead(f, &headers, "WriteBW KiB/s", family)
+	addHead(f, &headers, "ReadBW KiB/s", family)
 
-	f.SetCellValue(family, "J1", "Read LatMax")
-	f.SetCellValue(family, "K1", "Read LatMin")
-	f.SetCellValue(family, "L1", "Read Lat stddev")
-	f.SetCellValue(family, "M1", "Read cLat p99 ms")
+	addHead(f, &headers, "Write LatMax", family)
+	addHead(f, &headers, "Write LatMin", family)
+	addHead(f, &headers, "Write Lat stddev", family)
+	addHead(f, &headers, "Write cLat p99 ms", family)
 
-	f.SetCellValue(family, "N1", "Write IOPS")
-	f.SetCellValue(family, "O1", "Read IOPS")
+	addHead(f, &headers, "Read LatMax", family)
+	addHead(f, &headers, "Read LatMin", family)
+	addHead(f, &headers, "Read Lat stddev", family)
+	addHead(f, &headers, "Read cLat p99 ms", family)
 
-	f.SetCellValue(family, "P1", "Mem Min")
-	f.SetCellValue(family, "Q1", "Mem Max")
-	f.SetCellValue(family, "R1", "Mem Avg")
+	addHead(f, &headers, "Write IOPS", family)
+	addHead(f, &headers, "pRead IOPS" , family)
 
-	f.SetCellValue(family, "S1", "CPU %")
+	addHead(f, &headers, "Mem Min"   , family)
+	addHead(f, &headers, "Mem Max"   , family)
+	addHead(f, &headers, "Mem Avg"   , family)
+
+	addHead(f, &headers, "CPU %", family)
 
 	row_nr := 2
 	for _, test := range results {
-		genExcelRow(test, f, family, row_nr)
+		genExcelRow(&headers, test, f, family, row_nr)
 		row_nr++
 	}
 	f.SetActiveSheet(index)
